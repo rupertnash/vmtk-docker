@@ -1,24 +1,42 @@
-# Taking as base image a Ubuntu Desktop container with web-based noVNC connection enabled
-FROM dorowu/ubuntu-desktop-lxde-vnc
-MAINTAINER Rupert Nash (r.nash@epcc.ed.ac.uk)
+FROM rupertnash/ubuntu-desktop-lxde-vnc:1.0.0
+MAINTAINER Rupert Nash <r.nash@epcc.ed.ac.uk>
 
-##
 # Dependencies
-##
-# Have to fix the expired key in one of the extra apt repos...
-RUN rm /etc/apt/sources.list.d/arc-theme.list \
-    && apt-key del BEB6D886 \
-    && apt-get update \
+RUN apt-get update \
     && apt-get install -y software-properties-common \
     && apt-get update \
-    && apt-get install -y python-tk
+    && apt-get install -y \
+    cmake \
+    git \
+    build-essential \
+    python-dev \
+    python-tk \
+    python-vtk6 \
+    libvtk6-dev \
+    insighttoolkit4-python \
+    libinsighttoolkit4-dev
 
-WORKDIR /tmp
-ADD http://s3.amazonaws.com/vmtk-installers/1.3/vmtk-1.3.linux-x86_64.egg /tmp/
-RUN easy_install vmtk-1.3.linux-x86_64.egg
-
-ENV VMTKHOME=/usr/local/lib/python2.7/dist-packages/vmtk-1.3.linux-x86_64.egg
-# These are NOT concatenated as the setting of VMTKHOME isn't visible until the end of the command.
-ENV PATH=$VMTKHOME/vmtk/bin:$PATH \
-    LD_LIBRARY_PATH=$VMTKHOME/vmtk/lib:$LD_LIBRARY_PATH \
-    PYTHONPATH=$VMTKHOME/vmtk:$PYTHONPATH
+# Get and build VMTK
+WORKDIR /vmtk
+RUN curl -sL https://github.com/vmtk/vmtk/archive/v1.3.2.tar.gz > v1.3.2.tar.gz \
+    && tar -xzf v1.3.2.tar.gz \
+    && mkdir build && cd build \
+    && cmake -Wno-dev \
+    -DUSE_SYSTEM_ITK=ON \
+    -DUSE_SYSTEM_VTK=ON \
+    -DVMTK_USE_SUPERBUILD=OFF \
+    -DVMTK_USE_VTK7=OFF \
+    -DVTK_VMTK_BUILD_STREAMTRACER=OFF \
+    -DVTK_VMTK_BUILD_TETGEN=OFF \
+    -DVTK_VMTK_WRAP_JAVA=OFF \
+    -DVTK_VMTK_WRAP_PYTHON=ON \
+    -DVMTK_USE_RENDERING=ON \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DVMTK_MODULE_INSTALL_LIB_DIR=/usr/local/lib/python2.7/dist-packages/vmtk \
+    -DVTK_VMTK_MODULE_INSTALL_LIB_DIR=/usr/local/lib/python2.7/dist-packages/vmtk \
+    -DVMTK_SCRIPTS_INSTALL_LIB_DIR=/usr/local/lib/python2.7/dist-packages/vmtk \
+    -DPYPES_MODULE_INSTALL_LIB_DIR=/usr/local/lib/python2.7/dist-packages/vmtk \
+    ../vmtk-1.3.2 \
+    && make -j 2 install \
+    && ldconfig 
